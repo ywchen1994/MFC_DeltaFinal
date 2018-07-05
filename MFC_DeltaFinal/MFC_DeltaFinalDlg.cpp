@@ -411,6 +411,7 @@ void CMFC_DeltaFinalDlg::OnTimer(UINT_PTR nIDEvent)
 			buffer[1] = 0x41;
 			buffer[2] = 0x98;
 			Serial_Car_RF.SendData(buffer, sizeof(buffer));
+			SetDlgItemText(IDC_CAR_Statement, _T("Send buffer %d", buffer[2]));
 		}
 	}
 	break;
@@ -637,11 +638,15 @@ int CMFC_DeltaFinalDlg::Caffe(Mat & input, Net & net1)
 	 buffer[1] = 0x41;
 	 buffer[2] = 0x62;
 	 Serial_Car_RF.SendData(buffer,sizeof(buffer));
+	 SetDlgItemText(IDC_CAR_Statement, _T("Send buffer %d", buffer[2]));
 	 while (1)
 	 {
 		 Serial_Car_RF.ReadData(buffer, 10);
 		 if (buffer[2] == 0x65)
+		 {
+			 SetDlgItemText(IDC_CAR_Statement, _T("Send buffer %d", buffer[2]));
 			 break;
+		 }
 	 }
 
 		 ObjectToWork = true;
@@ -661,4 +666,5 @@ int CMFC_DeltaFinalDlg::Caffe(Mat & input, Net & net1)
 	 buffer[1] = 0x41;
 	 buffer[2] = 0x00;
 	 Serial_Car_RF.SendData(buffer, sizeof(buffer));
+	 SetDlgItemText(IDC_CAR_Statement, _T("Send buffer %d", buffer[2]));
  }
