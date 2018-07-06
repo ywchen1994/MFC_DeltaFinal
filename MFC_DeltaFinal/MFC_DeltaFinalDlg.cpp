@@ -301,8 +301,14 @@ void CMFC_DeltaFinalDlg::OnBnClickedcoordinatecalibration()
 	SetROI(Img_ROI, rec);
 	cv::threshold(Img_Depth_source, Img_desk_, thre_value, 255, CV_THRESH_BINARY);
 	SetROI(Img_desk_, rec);
+	bitwise_and(Img_desk_, Img_Depth_source, Img_desk_);
 	vector<Point>deskDepth;
 	vector<double>depth_value;
+	double minv = 0.0, maxv = 0.0;
+	double* minp = &minv;
+	double* maxp = &maxv;
+	minMaxIdx(Img_desk_, minp, maxp);
+	DeskThreshold = *maxp;
 	cv::findNonZero(Img_desk_, deskDepth);
 	for (uint i = 0; i < deskDepth.size(); i++)
 	{
@@ -337,7 +343,7 @@ void CMFC_DeltaFinalDlg::OnBnClickedcoordinatecalibration()
 		coord_bias.z = depth_value[depth_value.size() / 2];
 	fstream fp;
 	fp.open("Bias.txt", ios::out);
-	fp << coord_bias.x << " " << coord_bias.y << " " << coord_bias.z;
+	fp << coord_bias.x << " " << coord_bias.y << " " << coord_bias.z<<" "<<DeskThreshold;
 	fp.close();
 }
 void CMFC_DeltaFinalDlg::OnTimer(UINT_PTR nIDEvent)
@@ -490,7 +496,7 @@ void CMFC_DeltaFinalDlg::Camera2SCARA(Mat DepthImage)
 	Rect rec = Rect(250, 20, 65, 70);
 	Mat temp= DepthImage(rec);
 
-	threshold(DepthImage, DepthImage,190, 255, CV_THRESH_BINARY_INV);
+	threshold(DepthImage, DepthImage,(DeskThreshold-5), 255, CV_THRESH_BINARY_INV);
 	SetROI(DepthImage, rec);
 	cv::erode(DepthImage, DepthImage, Mat());
 	vector<vector<cv::Point>> contours_findobject; // Vector for storing contour
@@ -634,6 +640,7 @@ void CMFC_DeltaFinalDlg::LoadSet()
 	fp >> coord_bias.x;
 	fp >> coord_bias.y;
 	fp >> coord_bias.z;
+	fp >> DeskThreshold;
 	fp.close();
 }
 

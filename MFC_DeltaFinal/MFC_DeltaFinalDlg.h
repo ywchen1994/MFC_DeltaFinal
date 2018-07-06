@@ -95,7 +95,7 @@ public:
 	CSerial Serial_Car_RF;
 	afx_msg void OnBnClickedScaraconnect();
 	afx_msg void OnBnClickedBtnAllrun();
-	
+	int DeskThreshold=0;
 	afx_msg void OnBnClickedBtnCargo();
 	afx_msg void OnBnClickedBtnstartrun();
 	CButton m_SuperUSER;

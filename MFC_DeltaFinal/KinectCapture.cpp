@@ -237,8 +237,6 @@ bool KinectCapture::DepthImage(Mat &D_Img)
 
 		mDepthImg.convertTo(mDepthImg8bit, CV_8U, 255.0f / 825);
 		mDepthImg8bit.copyTo(D_Img);
-
-
 		fGet = true;
 		pDepthFrame->Release();
 	}
