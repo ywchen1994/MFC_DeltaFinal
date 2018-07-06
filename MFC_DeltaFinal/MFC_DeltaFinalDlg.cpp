@@ -117,7 +117,7 @@ BOOL CMFC_DeltaFinalDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 設定小圖示
 
 	// TODO: 在此加入額外的初始設定
-	SetTimer(1,2000, NULL);
+	SetTimer(1,500, NULL);
 	m_ImageDepth.SetWindowPos(NULL, 10, 20, 512, 424, SWP_SHOWWINDOW);
 	m_Image_WebCam.SetWindowPos(NULL, 730, 20, 640, 480, SWP_SHOWWINDOW);
 	LoadSet();
@@ -289,7 +289,7 @@ void CMFC_DeltaFinalDlg::OnBnClickedWebopn()
 void CMFC_DeltaFinalDlg::OnBnClickedcoordinatecalibration()
 {
 	Mat Img_ROI;
-	Rect rec = Rect(250, 20, 65, 70);
+
 	Img_Depth_source.copyTo(Img_ROI);
 	//	SetROI(Img_ROI, Rect(50, 100, 395, 125));
 	 /*********/
@@ -321,7 +321,7 @@ void CMFC_DeltaFinalDlg::OnBnClickedcoordinatecalibration()
 
 	vector<vector<cv::Point>> contours_calibrate; // Vector for storing contour
 	vector<Vec4i>hierarchy;
-	findContours(Img_ROI, contours_calibrate, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE); // Find the contours in the image
+	cv::findContours(Img_ROI, contours_calibrate, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE); // Find the contours in the image
 	for (int i = 0; i < contours_calibrate.size(); i++) // Iterate through each contour
 	{
 		double Area = contourArea(contours_calibrate[i], false);
@@ -384,12 +384,14 @@ void CMFC_DeltaFinalDlg::OnTimer(UINT_PTR nIDEvent)
 					m_LIST_SCARA.SetItemText(0, 4, str);
 					str.Format(_T("%d"), ObjectCoordinate[3]);
 					m_LIST_SCARA.SetItemText(0, 5, str);
-
-					modbus_write_register(mb, ArmXAddr, ObjectCoordinate[0]);
-					modbus_write_register(mb, ArmYAddr, ObjectCoordinate[1]);
-					modbus_write_register(mb, ArmZAddr, ObjectCoordinate[2]);
-					modbus_write_register(mb, ArmThetaAddr, ObjectCoordinate[3]);
-					modbus_write_register(mb, ArmSendDoneAddr, 1);
+					if (ObjectToWork)
+					{
+						modbus_write_register(mb, ArmXAddr, ObjectCoordinate[0]);
+						modbus_write_register(mb, ArmYAddr, ObjectCoordinate[1]);
+						modbus_write_register(mb, ArmZAddr, ObjectCoordinate[2]);
+						modbus_write_register(mb, ArmThetaAddr, ObjectCoordinate[3]);
+						modbus_write_register(mb, ArmSendDoneAddr, 1);
+					}
 				}
 				break;
 				case 2:
@@ -430,6 +432,8 @@ void CMFC_DeltaFinalDlg::OnTimer(UINT_PTR nIDEvent)
 	}
 	case 1:
 	{
+		
+		
 		if (m_SuperUSER.GetCheck())
 		{
 			GetDlgItem(Btn_coordinateCalibration)->ShowWindow(SW_RESTORE);
@@ -493,7 +497,7 @@ void CMFC_DeltaFinalDlg::Thread_Image_Cam(LPVOID lParam)
 void CMFC_DeltaFinalDlg::Camera2SCARA(Mat DepthImage)
 {
 	//SetROI(DepthImage, Rect(50, 100, 395, 125));
-	Rect rec = Rect(250, 20, 65, 70);
+
 	Mat temp= DepthImage(rec);
 
 	threshold(DepthImage, DepthImage,(DeskThreshold-5), 255, CV_THRESH_BINARY_INV);
@@ -503,6 +507,11 @@ void CMFC_DeltaFinalDlg::Camera2SCARA(Mat DepthImage)
 	vector<Vec4i>hierarchy;
 	cv::Point center;
 	findContours(DepthImage, contours_findobject, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE); // Find the contours in the image
+	if (contours_findobject.size() == 0)
+	{
+		ObjectToWork = false;
+		return;
+	}
 	for (int i = 0; i < contours_findobject.size(); i++) // Iterate through each contour
 	{
 		double Area = contourArea(contours_findobject[i], false);
@@ -535,11 +544,7 @@ int CMFC_DeltaFinalDlg::Caffe(Mat & input, Net & net1)
 		bounding_rect = boundingRect(contours[i]); // Find the bounding rectangle for biggest contour
 	}
 
-
 	Mat img = input(bounding_rect);
-
-
-
 	cvtColor(img, img, CV_BGR2HSV);
 
 	Mat img_r;
@@ -573,7 +578,7 @@ void CMFC_DeltaFinalDlg::getMaxClass(const Mat &probBlob, int *classId, double *
 	minMaxLoc(probMat, NULL, classProb, NULL, &classNumber);
 	*classId = classNumber.x;
 }
-void CMFC_DeltaFinalDlg::SetROI(Mat &Img_src, Rect rec)
+void CMFC_DeltaFinalDlg::SetROI(Mat &Img_src, Rect rect_t)
 {
 	for (uint j = 0; j < Img_src.rows; j++)
 
@@ -582,7 +587,7 @@ void CMFC_DeltaFinalDlg::SetROI(Mat &Img_src, Rect rec)
 
 		for (uint i = 0; i < Img_src.cols; i++)
 		{
-			if (i < rec.x || (i > (rec.x + rec.width)) || j<rec.y || j>(rec.y + rec.height))
+			if (i < rect_t.x || (i > (rect_t.x + rect_t.width)) || j<rect_t.y || j>(rect_t.y + rect_t.height))
 				temp[i] = 0;
 		}
 	}
@@ -619,7 +624,7 @@ void CMFC_DeltaFinalDlg::calcCircles(const Mat &input)
 	cv::line(_Canny, cv::Point(171, 234), cv::Point(511, 234), cv::Scalar(0));
 	cv::line(_Canny, cv::Point(171, 233), cv::Point(511, 233), cv::Scalar(0));
 
-	dilate(_Canny, _Canny, Mat());
+	cv::dilate(_Canny, _Canny, Mat());
 	erode(_Canny, _Canny, Mat());
 
 	Mat Boundary = Mat::zeros(_Canny.size(), CV_8UC1);
@@ -719,7 +724,6 @@ void CMFC_DeltaFinalDlg::OnBnClickedBtnstartrun()
 			break;
 		}
 	}
-
 	ObjectToWork = true;
 	ToWork = 1;
 	modbus_write_register(mb, ArmToWorkAddr, ToWork);

@@ -99,4 +99,5 @@ public:
 	afx_msg void OnBnClickedBtnCargo();
 	afx_msg void OnBnClickedBtnstartrun();
 	CButton m_SuperUSER;
+	Rect rec = Rect(250, 20, 65, 70);
 };
