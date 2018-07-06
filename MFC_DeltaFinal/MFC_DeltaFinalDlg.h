@@ -97,4 +97,6 @@ public:
 	afx_msg void OnBnClickedBtnAllrun();
 	
 	afx_msg void OnBnClickedBtnCargo();
+	afx_msg void OnBnClickedBtnstartrun();
+	CButton m_SuperUSER;
 };

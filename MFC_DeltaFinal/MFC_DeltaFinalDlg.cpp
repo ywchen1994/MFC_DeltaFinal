@@ -24,12 +24,12 @@ class CAboutDlg : public CDialogEx
 public:
 	CAboutDlg();
 
-// 對話方塊資料
+	// 對話方塊資料
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_ABOUTBOX };
 #endif
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支援
 
 // 程式碼實作
@@ -66,6 +66,7 @@ void CMFC_DeltaFinalDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_ImageDepth, m_ImageDepth);
 	DDX_Control(pDX, IDC_Image_WebCam, m_Image_WebCam);
 	DDX_Control(pDX, IDC_LIST_SCARA, m_LIST_SCARA);
+	DDX_Control(pDX, IDC_CHECK_SuperUSER, m_SuperUSER);
 }
 
 BEGIN_MESSAGE_MAP(CMFC_DeltaFinalDlg, CDialogEx)
@@ -79,8 +80,8 @@ BEGIN_MESSAGE_MAP(CMFC_DeltaFinalDlg, CDialogEx)
 	ON_BN_CLICKED(Btn_CarConnect, &CMFC_DeltaFinalDlg::OnBnClickedCarconnect)
 	ON_BN_CLICKED(Btn_SCARAConnect, &CMFC_DeltaFinalDlg::OnBnClickedScaraconnect)
 	ON_BN_CLICKED(IDC_Btn_AllRun, &CMFC_DeltaFinalDlg::OnBnClickedBtnAllrun)
-
 	ON_BN_CLICKED(IDC_Btn_CARGO, &CMFC_DeltaFinalDlg::OnBnClickedBtnCargo)
+	ON_BN_CLICKED(IDC_BtnStartRun, &CMFC_DeltaFinalDlg::OnBnClickedBtnstartrun)
 END_MESSAGE_MAP()
 
 
@@ -116,8 +117,9 @@ BOOL CMFC_DeltaFinalDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 設定小圖示
 
 	// TODO: 在此加入額外的初始設定
+	SetTimer(1,2000, NULL);
 	m_ImageDepth.SetWindowPos(NULL, 10, 20, 512, 424, SWP_SHOWWINDOW);
-	m_Image_WebCam.SetWindowPos(NULL,730, 20, 640,480, SWP_SHOWWINDOW);
+	m_Image_WebCam.SetWindowPos(NULL, 730, 20, 640, 480, SWP_SHOWWINDOW);
 	LoadSet();
 	WORD dwStyle = m_LIST_SCARA.GetExtendedStyle();
 	dwStyle |= LVS_EX_FULLROWSELECT;
@@ -287,12 +289,12 @@ void CMFC_DeltaFinalDlg::OnBnClickedWebopn()
 void CMFC_DeltaFinalDlg::OnBnClickedcoordinatecalibration()
 {
 	Mat Img_ROI;
-	Rect rec = Rect(250, 20, 75, 70);
+	Rect rec = Rect(250, 20, 65, 70);
 	Img_Depth_source.copyTo(Img_ROI);
-   //	SetROI(Img_ROI, Rect(50, 100, 395, 125));
-	/*********/
-	Mat tme = Img_Depth_source(rec);
-	int thre_value=cv::threshold(tme, tme, 240, 255, CV_THRESH_OTSU);
+	//	SetROI(Img_ROI, Rect(50, 100, 395, 125));
+	 /*********/
+	Mat tme = Img_ROI(rec);
+	int thre_value = cv::threshold(tme, tme, 240, 255, CV_THRESH_OTSU);
 
 	Mat Img_desk_;
 	cv::threshold(Img_ROI, Img_ROI, thre_value, 255, CV_THRESH_BINARY_INV);
@@ -301,10 +303,12 @@ void CMFC_DeltaFinalDlg::OnBnClickedcoordinatecalibration()
 	SetROI(Img_desk_, rec);
 	vector<Point>deskDepth;
 	vector<double>depth_value;
-	cv::findNonZero(Img_ROI, deskDepth);
+	cv::findNonZero(Img_desk_, deskDepth);
 	for (uint i = 0; i < deskDepth.size(); i++)
 	{
-		depth_value.push_back(kinect.getDepthValue(deskDepth[i]));
+		Point3d p;
+		kinect.Depth2CameraSpace(deskDepth[i], &p);
+		depth_value.push_back(p.z*1000);
 	}
 	sort(depth_value.begin(), depth_value.end());
 	//cv::erode(Img_ROI, Img_ROI, Mat());
@@ -333,7 +337,7 @@ void CMFC_DeltaFinalDlg::OnBnClickedcoordinatecalibration()
 		coord_bias.z = depth_value[depth_value.size() / 2];
 	fstream fp;
 	fp.open("Bias.txt", ios::out);
-	fp << coord_bias.x << " " << coord_bias.y<<" "<< coord_bias.z;
+	fp << coord_bias.x << " " << coord_bias.y << " " << coord_bias.z;
 	fp.close();
 }
 void CMFC_DeltaFinalDlg::OnTimer(UINT_PTR nIDEvent)
@@ -385,7 +389,7 @@ void CMFC_DeltaFinalDlg::OnTimer(UINT_PTR nIDEvent)
 				case 2:
 				{
 					Mat frame;
-					frame_WebCam.copyTo(frame);	
+					frame_WebCam.copyTo(frame);
 					calcCircles(frame);
 					Mat Hsv;
 					cvtColor(frame, Hsv, CV_BGR2HSV);
@@ -411,9 +415,27 @@ void CMFC_DeltaFinalDlg::OnTimer(UINT_PTR nIDEvent)
 			buffer[1] = 0x41;
 			buffer[2] = 0x98;
 			Serial_Car_RF.SendData(buffer, sizeof(buffer));
-			SetDlgItemText(IDC_CAR_Statement, _T("Send buffer %d", buffer[2]));
+
+			CString str;
+			str.Format(_T("Send buffer %d", buffer[2]));
+			SetDlgItemText(IDC_CAR_Statement, str);
+			
 		}
 	}
+	case 1:
+	{
+		if (m_SuperUSER.GetCheck())
+		{
+			GetDlgItem(Btn_coordinateCalibration)->ShowWindow(SW_RESTORE);
+			GetDlgItem(IDC_Btn_CARGO)->ShowWindow(SW_RESTORE);
+		}
+		else
+		{
+			GetDlgItem(Btn_coordinateCalibration)->ShowWindow(SW_HIDE);
+			GetDlgItem(IDC_Btn_CARGO)->ShowWindow(SW_HIDE);
+		}
+	}
+	break;
 	break;
 	default:
 		break;
@@ -423,7 +445,7 @@ void CMFC_DeltaFinalDlg::OnTimer(UINT_PTR nIDEvent)
 
 void CMFC_DeltaFinalDlg::OnBnClickedCarconnect()
 {
-	Serial_Car_RF.Open(4,57600);
+	Serial_Car_RF.Open(3, 57600);
 }
 void CMFC_DeltaFinalDlg::Thread_Image_Depth(LPVOID lParam)
 {
@@ -464,10 +486,12 @@ void CMFC_DeltaFinalDlg::Thread_Image_Cam(LPVOID lParam)
 }
 void CMFC_DeltaFinalDlg::Camera2SCARA(Mat DepthImage)
 {
-	SetROI(DepthImage, Rect(50, 100, 395, 125));
+	//SetROI(DepthImage, Rect(50, 100, 395, 125));
+	Rect rec = Rect(250, 20, 65, 70);
+	Mat temp= DepthImage(rec);
 
-	
-	threshold(DepthImage, DepthImage, 240, 255, CV_THRESH_BINARY_INV);
+	threshold(DepthImage, DepthImage,190, 255, CV_THRESH_BINARY_INV);
+	SetROI(DepthImage, rec);
 	cv::erode(DepthImage, DepthImage, Mat());
 	vector<vector<cv::Point>> contours_findobject; // Vector for storing contour
 	vector<Vec4i>hierarchy;
@@ -492,7 +516,7 @@ void CMFC_DeltaFinalDlg::Camera2SCARA(Mat DepthImage)
 
 	ObjectCoordinate[0] = -1000 * CameraSpace.x + coord_bias.x;
 	ObjectCoordinate[1] = 1000 * CameraSpace.y + coord_bias.y;
-	ObjectCoordinate[2] = -197+ coord_bias.z-CameraSpace.z;
+	ObjectCoordinate[2] = -197 + coord_bias.z - CameraSpace.z*1000;
 	ObjectCoordinate[3] = 0;
 }
 
@@ -507,15 +531,15 @@ int CMFC_DeltaFinalDlg::Caffe(Mat & input, Net & net1)
 
 
 	Mat img = input(bounding_rect);
-	
+
 
 
 	cvtColor(img, img, CV_BGR2HSV);
 
 	Mat img_r;
 	resize(img, img_r, cv::Size(32, 32));
-	Mat inputBlob = blobFromImage(img_r, 1, Size(32, 32), 
-	Scalar(33, 148, 160), false); 
+	Mat inputBlob = blobFromImage(img_r, 1, Size(32, 32),
+		Scalar(33, 148, 160), false);
 	Mat prob;
 	cv::TickMeter t;
 	for (int i = 0; i < 1; i++)
@@ -531,140 +555,166 @@ int CMFC_DeltaFinalDlg::Caffe(Mat & input, Net & net1)
 	double classProb;
 	getMaxClass(prob, &classId, &classProb);//find the best class
 	return classId;
-	
+
 	a++;
 	img.release();
 }
 
- void CMFC_DeltaFinalDlg::getMaxClass(const Mat &probBlob, int *classId, double *classProb)
+void CMFC_DeltaFinalDlg::getMaxClass(const Mat &probBlob, int *classId, double *classProb)
 {
 	Mat probMat = probBlob.reshape(1, 1); //reshape the blob to 1x1000 matrix
 	Point classNumber;
 	minMaxLoc(probMat, NULL, classProb, NULL, &classNumber);
 	*classId = classNumber.x;
 }
- void CMFC_DeltaFinalDlg::SetROI(Mat &Img_src, Rect rec)
- {
-	 for (uint j = 0; j<Img_src.rows; j++)
+void CMFC_DeltaFinalDlg::SetROI(Mat &Img_src, Rect rec)
+{
+	for (uint j = 0; j < Img_src.rows; j++)
 
-	 {
-		 uchar* temp = Img_src.ptr<uchar>(j);
+	{
+		uchar* temp = Img_src.ptr<uchar>(j);
 
-		 for (uint i = 0; i < Img_src.cols; i++)
-		 {
-			 if (i < rec.x || (i >(rec.x + rec.width)) || j<rec.y || j>(rec.y + rec.height))
-				 temp[i] =0;
-		 }
-	 }
- }
- void CMFC_DeltaFinalDlg::calcCircles(const Mat &input)
- {
-	 Mat gray(480, 640, CV_8U);
-	 cvtColor(input, gray, cv::COLOR_RGB2GRAY);/*轉灰階*/
-	 SetROI(gray, Rect(171, 19, 340, 216));
-	 GaussianBlur(gray, gray, cv::Size(3, 3), 0, 0);
-	 Mat _Canny;
-	 Canny(gray, _Canny, 50, 100);
-	 cv::line(_Canny, cv::Point(171, 19), cv::Point(171, 235), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(170, 19), cv::Point(170, 235), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(172, 19), cv::Point(172, 235), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(173, 19), cv::Point(173, 235), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(169, 19), cv::Point(169, 235), cv::Scalar(0));
+		for (uint i = 0; i < Img_src.cols; i++)
+		{
+			if (i < rec.x || (i > (rec.x + rec.width)) || j<rec.y || j>(rec.y + rec.height))
+				temp[i] = 0;
+		}
+	}
+}
+void CMFC_DeltaFinalDlg::calcCircles(const Mat &input)
+{
+	Mat gray(480, 640, CV_8U);
+	cvtColor(input, gray, cv::COLOR_RGB2GRAY);/*轉灰階*/
+	SetROI(gray, Rect(171, 19, 340, 216));
+	GaussianBlur(gray, gray, cv::Size(3, 3), 0, 0);
+	Mat _Canny;
+	Canny(gray, _Canny, 50, 100);
+	cv::line(_Canny, cv::Point(171, 19), cv::Point(171, 235), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(170, 19), cv::Point(170, 235), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(172, 19), cv::Point(172, 235), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(173, 19), cv::Point(173, 235), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(169, 19), cv::Point(169, 235), cv::Scalar(0));
 
-	 cv::line(_Canny, cv::Point(511, 19), cv::Point(511, 235), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(510, 19), cv::Point(510, 235), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(509, 19), cv::Point(509, 235), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(512, 19), cv::Point(512, 235), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(513, 19), cv::Point(513, 235), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(511, 19), cv::Point(511, 235), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(510, 19), cv::Point(510, 235), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(509, 19), cv::Point(509, 235), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(512, 19), cv::Point(512, 235), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(513, 19), cv::Point(513, 235), cv::Scalar(0));
 
-	 cv::line(_Canny, cv::Point(171, 19), cv::Point(511, 19), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(171, 18), cv::Point(511, 18), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(171, 17), cv::Point(511, 17), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(171, 20), cv::Point(511, 20), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(171, 21), cv::Point(511, 21), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(171, 19), cv::Point(511, 19), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(171, 18), cv::Point(511, 18), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(171, 17), cv::Point(511, 17), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(171, 20), cv::Point(511, 20), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(171, 21), cv::Point(511, 21), cv::Scalar(0));
 
-	 cv::line(_Canny, cv::Point(171, 235), cv::Point(511, 235), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(171, 236), cv::Point(511, 236), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(171, 237), cv::Point(511, 237), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(171, 234), cv::Point(511, 234), cv::Scalar(0));
-	 cv::line(_Canny, cv::Point(171, 233), cv::Point(511, 233), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(171, 235), cv::Point(511, 235), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(171, 236), cv::Point(511, 236), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(171, 237), cv::Point(511, 237), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(171, 234), cv::Point(511, 234), cv::Scalar(0));
+	cv::line(_Canny, cv::Point(171, 233), cv::Point(511, 233), cv::Scalar(0));
 
-	 dilate(_Canny, _Canny, Mat());
-	 erode(_Canny, _Canny, Mat());
+	dilate(_Canny, _Canny, Mat());
+	erode(_Canny, _Canny, Mat());
 
-	 Mat Boundary = Mat::zeros(_Canny.size(), CV_8UC1);
+	Mat Boundary = Mat::zeros(_Canny.size(), CV_8UC1);
 
-	 vector<Vec4i> hierarchy;
+	vector<Vec4i> hierarchy;
 
-	 findContours(_Canny, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+	findContours(_Canny, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
 
-	 for (int i = 0; i<contours.size(); i++) {
-		 drawContours(Boundary, contours, i, cv::Scalar(255), 2, 8, hierarchy);
-	 }
+	for (int i = 0; i < contours.size(); i++) {
+		drawContours(Boundary, contours, i, cv::Scalar(255), 2, 8, hierarchy);
+	}
 
- }
- void CMFC_DeltaFinalDlg::LoadSet()
- {
-	 fstream fp;
-	 fp.open("Bias.txt", ios::in);
-	 fp >> coord_bias.x;
-	 fp >> coord_bias.y;
-	 fp >> coord_bias.z;
-	 fp.close();
- }
+}
+void CMFC_DeltaFinalDlg::LoadSet()
+{
+	fstream fp;
+	fp.open("Bias.txt", ios::in);
+	fp >> coord_bias.x;
+	fp >> coord_bias.y;
+	fp >> coord_bias.z;
+	fp.close();
+}
 
- void CMFC_DeltaFinalDlg::OnBnClickedScaraconnect()
- {
-	 int res = modbus_connect(mb);
-	 modbus_set_slave(mb, 2);
+void CMFC_DeltaFinalDlg::OnBnClickedScaraconnect()
+{
+	int res = modbus_connect(mb);
+	modbus_set_slave(mb, 2);
 
-	 if (res < 0)
-	 {
-		 MessageBox(L"Connect Fail");
-		 SetDlgItemText(IDC_SCARA_Statement, _T("Connect Fail"));
-	 }
-	 else
-	 {
-		 SetDlgItemText(IDC_SCARA_Statement, _T("Connect"));
-		 SetTimer(0, 1000, NULL);
-	 }
- }
+	if (res < 0)
+	{
+		MessageBox(L"Connect Fail");
+		SetDlgItemText(IDC_SCARA_Statement, _T("Connect Fail"));
+	}
+	else
+	{
+		SetDlgItemText(IDC_SCARA_Statement, _T("Connect"));
+	}
+}
 
 
- void CMFC_DeltaFinalDlg::OnBnClickedBtnAllrun()
- {
-	 char buffer[10] = { 0 };
-	 buffer[0] = 0x30;
-	 buffer[1] = 0x41;
-	 buffer[2] = 0x62;
-	 Serial_Car_RF.SendData(buffer,sizeof(buffer));
-	 SetDlgItemText(IDC_CAR_Statement, _T("Send buffer %d", buffer[2]));
-	 while (1)
-	 {
-		 Serial_Car_RF.ReadData(buffer, 10);
-		 if (buffer[2] == 0x65)
-		 {
-			 SetDlgItemText(IDC_CAR_Statement, _T("Send buffer %d", buffer[2]));
-			 break;
-		 }
-	 }
+void CMFC_DeltaFinalDlg::OnBnClickedBtnAllrun()
+{
+	CButton* m_button = (CButton*)GetDlgItem(Btn_KinectOpn);
+	SendMessage(WM_COMMAND, MAKEWPARAM(Btn_KinectOpn, BN_CLICKED), (LPARAM)m_button->m_hWnd);
+	Sleep(50);
+    m_button = (CButton*)GetDlgItem(Btn_WebOpn);
+	SendMessage(WM_COMMAND, MAKEWPARAM(Btn_WebOpn, BN_CLICKED), (LPARAM)m_button->m_hWnd);
+	Sleep(50);
+	 m_button = (CButton*)GetDlgItem(Btn_SCARAConnect);
+	SendMessage(WM_COMMAND, MAKEWPARAM(Btn_SCARAConnect, BN_CLICKED), (LPARAM)m_button->m_hWnd);
+	Sleep(50);
+	 m_button = (CButton*)GetDlgItem(Btn_CarConnect);
+	SendMessage(WM_COMMAND, MAKEWPARAM(Btn_CarConnect, BN_CLICKED), (LPARAM)m_button->m_hWnd);
+	Sleep(50);
+	
 
-		 ObjectToWork = true;
-		 ToWork = 1;
-		 modbus_write_register(mb, ArmToWorkAddr, ToWork);
-		 SetTimer(0, 1000, NULL);
-	 
- }
+}
 
 
 
 
- void CMFC_DeltaFinalDlg::OnBnClickedBtnCargo()
- {
-	 char buffer[10] = { 0 };
-	 buffer[0] = 0x30;
-	 buffer[1] = 0x41;
-	 buffer[2] = 0x00;
-	 Serial_Car_RF.SendData(buffer, sizeof(buffer));
-	 SetDlgItemText(IDC_CAR_Statement, _T("Send buffer %d", buffer[2]));
- }
+void CMFC_DeltaFinalDlg::OnBnClickedBtnCargo()
+{
+	/*char buffer[10] = { 0 };
+	buffer[0] = 0x30;
+	buffer[1] = 0x41;
+	buffer[2] = 0x00;
+	Serial_Car_RF.SendData(buffer, sizeof(buffer));
+	CString str;
+	str.Format(_T("Send buffer %d", buffer[2]));
+	SetDlgItemText(IDC_CAR_Statement, str);*/
+	Mat Img_Depth_temp;
+	Img_Depth_source.copyTo(Img_Depth_temp);
+	Camera2SCARA(Img_Depth_temp);
+	int a = 99;
+}
+
+
+void CMFC_DeltaFinalDlg::OnBnClickedBtnstartrun()
+{
+	char buffer[10] = { 0 };
+	buffer[0] = 0x30;
+	buffer[1] = 0x41;
+	buffer[2] = 0x62;
+	Serial_Car_RF.SendData(buffer, sizeof(buffer));
+	CString str;
+	str.Format(_T("Send buffer %d", buffer[2]));
+	SetDlgItemText(IDC_CAR_Statement, str);
+	while (1)
+	{
+		Serial_Car_RF.ReadData(buffer, 10);
+		if (buffer[2] == 0x65)
+		{
+			str.Format(_T("Get buffer %d",buffer[2]));
+			SetDlgItemText(IDC_CAR_Statement, str);
+			break;
+		}
+	}
+
+	ObjectToWork = true;
+	ToWork = 1;
+	modbus_write_register(mb, ArmToWorkAddr, ToWork);
+	SetTimer(0, 1000, NULL);
+}

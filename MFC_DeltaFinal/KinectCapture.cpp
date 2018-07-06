@@ -294,7 +294,7 @@ void  KinectCapture::Depth2CameraSpace(cv::Point Depthpoint, cv::Point3d *Camera
 }
 double KinectCapture::getDepthValue(cv::Point P)
 {
-	size_t idx = P.x + iWidth * P.y;
+	size_t idx = P.x + iDepthWidth * P.y;
 	return pDepthBuffer[idx];
 }
 void KinectCapture::Color2DepthSpace(CvPoint RGBpoint, CvPoint *Depthpoint)
